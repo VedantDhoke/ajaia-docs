@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 
 const connectDB = require("./config/db");
 
@@ -17,20 +19,24 @@ const {
 const errorHandler =
   require("./middleware/errorMiddleware");
 
-const multer = require("multer");
-
 dotenv.config();
 
-// connectDB();
+
+// Connect to MongoDB
+// Only connect when this file is run directly.
+// This prevents Jest from creating another MongoDB connection.
 
 if (require.main === module) {
   connectDB();
 }
 
+
 const app = express();
 
 
+// ================================
 // Middleware
+// ================================
 
 app.use(
   cors({
@@ -44,12 +50,29 @@ app.use(
 
 app.use(express.json());
 
-app.use(express.urlencoded({
-  extended: true,
-}));
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
 
 
-// Upload configuration
+// ================================
+// Upload Configuration
+// ================================
+
+// Create uploads directory if it doesn't exist.
+// This is required for production deployment on Render.
+
+const uploadDir =
+  path.join(__dirname, "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, {
+    recursive: true,
+  });
+}
+
 
 const storage =
   multer.diskStorage({
@@ -62,10 +85,7 @@ const storage =
 
       cb(
         null,
-        path.join(
-          __dirname,
-          "uploads"
-        )
+        uploadDir
       );
 
     },
@@ -88,17 +108,25 @@ const storage =
 
   });
 
+
 const upload =
   multer({
     storage,
+
     limits: {
       fileSize:
         5 * 1024 * 1024,
     },
+
   });
 
 
+// ================================
 // Routes
+// ================================
+
+
+// Health check
 
 app.get(
   "/api/health",
@@ -113,15 +141,24 @@ app.get(
   }
 );
 
+
+// Authentication routes
+
 app.use(
   "/api/auth",
   authRoutes
 );
 
+
+// Document routes
+
 app.use(
   "/api/documents",
   documentRoutes
 );
+
+
+// File upload
 
 app.post(
   "/api/documents/upload",
@@ -131,33 +168,37 @@ app.post(
 );
 
 
-// Error handler
+// ================================
+// Error Handler
+// ================================
 
 app.use(errorHandler);
 
 
-// const PORT =
-//   process.env.PORT || 5000;
+// ================================
+// Server
+// ================================
 
-// app.listen(
-//   PORT,
-//   () => {
+const PORT =
+  process.env.PORT || 5000;
 
-//     console.log(
-//       `Server running on port ${PORT}`
-//     );
-
-//   }
-// );
-
-const PORT = process.env.PORT || 5000;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(
-      `Server running on port ${PORT}`
-    );
-  });
+
+  app.listen(
+    PORT,
+    () => {
+
+      console.log(
+        `Server running on port ${PORT}`
+      );
+
+    }
+  );
+
 }
+
+
+// Export app for testing
 
 module.exports = app;
